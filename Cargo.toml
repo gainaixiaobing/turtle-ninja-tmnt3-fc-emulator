@@ -1,0 +1,9 @@
+[package]
+name = "turtlebox"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sdl2 = "0.38"
+rfd = "0.14"
+tetanes-core = "0.14"
