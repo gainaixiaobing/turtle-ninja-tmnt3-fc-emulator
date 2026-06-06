@@ -1,17 +1,15 @@
 use sdl2::audio::{AudioCallback, AudioSpecDesired};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::pixels::{Color, PixelFormatEnum};
-use sdl2::rect::Rect;
-use sdl2::controller::{Button, Axis};
+use sdl2::pixels::PixelFormatEnum;
 use std::env;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tetanes_core::prelude::*;
-use tetanes_core::input::JoypadBtnState;
 
-const STICK_THRESHOLD: i16 = 16000;
+mod input;
+mod overlay;
 
 // Audio callback structure
 struct NesAudioCallback {
@@ -49,160 +47,6 @@ fn find_bundle_resource(name: &str) -> Option<String> {
     } else {
         None
     }
-}
-
-fn char_bitmap(c: char) -> [u8; 7] {
-    match c {
-        'A' => [0x04,0x0A,0x11,0x1F,0x11,0x11,0x11],
-        'B' => [0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E],
-        'C' => [0x0E,0x11,0x10,0x10,0x10,0x11,0x0E],
-        'D' => [0x1C,0x12,0x11,0x11,0x11,0x12,0x1C],
-        'E' => [0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F],
-        'F' => [0x1F,0x10,0x10,0x1E,0x10,0x10,0x10],
-        'G' => [0x0E,0x11,0x10,0x17,0x11,0x11,0x0E],
-        'H' => [0x11,0x11,0x11,0x1F,0x11,0x11,0x11],
-        'I' => [0x0E,0x04,0x04,0x04,0x04,0x04,0x0E],
-        'J' => [0x07,0x02,0x02,0x02,0x02,0x12,0x0C],
-        'K' => [0x11,0x12,0x14,0x18,0x14,0x12,0x11],
-        'L' => [0x10,0x10,0x10,0x10,0x10,0x10,0x1F],
-        'M' => [0x11,0x1B,0x15,0x15,0x11,0x11,0x11],
-        'N' => [0x11,0x19,0x15,0x13,0x11,0x11,0x11],
-        'O' => [0x0E,0x11,0x11,0x11,0x11,0x11,0x0E],
-        'P' => [0x1E,0x11,0x11,0x1E,0x10,0x10,0x10],
-        'Q' => [0x0E,0x11,0x11,0x11,0x15,0x12,0x0D],
-        'R' => [0x1E,0x11,0x11,0x1E,0x14,0x12,0x11],
-        'S' => [0x0E,0x11,0x10,0x0E,0x01,0x11,0x0E],
-        'T' => [0x1F,0x04,0x04,0x04,0x04,0x04,0x04],
-        'U' => [0x11,0x11,0x11,0x11,0x11,0x11,0x0E],
-        'V' => [0x11,0x11,0x11,0x11,0x0A,0x0A,0x04],
-        'W' => [0x11,0x11,0x11,0x15,0x15,0x1B,0x11],
-        'X' => [0x11,0x11,0x0A,0x04,0x0A,0x11,0x11],
-        'Y' => [0x11,0x11,0x0A,0x04,0x04,0x04,0x04],
-        'Z' => [0x1F,0x01,0x02,0x04,0x08,0x10,0x1F],
-        'a' => [0x00,0x00,0x0E,0x01,0x0F,0x11,0x0F],
-        'b' => [0x10,0x10,0x16,0x19,0x11,0x11,0x1E],
-        'c' => [0x00,0x00,0x0E,0x10,0x10,0x11,0x0E],
-        'd' => [0x01,0x01,0x0D,0x13,0x11,0x11,0x0F],
-        'e' => [0x00,0x00,0x0E,0x11,0x1F,0x10,0x0E],
-        'f' => [0x06,0x09,0x08,0x1C,0x08,0x08,0x08],
-        'g' => [0x00,0x0F,0x11,0x11,0x0F,0x01,0x0E],
-        'h' => [0x10,0x10,0x16,0x19,0x11,0x11,0x11],
-        'i' => [0x04,0x00,0x0C,0x04,0x04,0x04,0x0E],
-        'j' => [0x02,0x00,0x06,0x02,0x02,0x12,0x0C],
-        'k' => [0x10,0x10,0x12,0x14,0x18,0x14,0x12],
-        'l' => [0x0C,0x04,0x04,0x04,0x04,0x04,0x0E],
-        'm' => [0x00,0x00,0x1A,0x15,0x15,0x11,0x11],
-        'n' => [0x00,0x00,0x16,0x19,0x11,0x11,0x11],
-        'o' => [0x00,0x00,0x0E,0x11,0x11,0x11,0x0E],
-        'p' => [0x00,0x00,0x1E,0x11,0x1E,0x10,0x10],
-        'q' => [0x00,0x00,0x0D,0x13,0x0F,0x01,0x01],
-        'r' => [0x00,0x00,0x16,0x19,0x10,0x10,0x10],
-        's' => [0x00,0x00,0x0E,0x10,0x0E,0x01,0x1E],
-        't' => [0x08,0x08,0x1C,0x08,0x08,0x09,0x06],
-        'u' => [0x00,0x00,0x11,0x11,0x11,0x13,0x0D],
-        'v' => [0x00,0x00,0x11,0x11,0x11,0x0A,0x04],
-        'w' => [0x00,0x00,0x11,0x11,0x15,0x15,0x0A],
-        'x' => [0x00,0x00,0x11,0x0A,0x04,0x0A,0x11],
-        'y' => [0x00,0x00,0x11,0x11,0x0F,0x01,0x0E],
-        'z' => [0x00,0x00,0x1F,0x02,0x04,0x08,0x1F],
-        '0' => [0x0E,0x11,0x13,0x15,0x19,0x11,0x0E],
-        '1' => [0x04,0x0C,0x04,0x04,0x04,0x04,0x0E],
-        '2' => [0x0E,0x11,0x01,0x02,0x04,0x08,0x1F],
-        '-' => [0x00,0x00,0x00,0x1F,0x00,0x00,0x00],
-        '/' => [0x01,0x02,0x02,0x04,0x08,0x08,0x10],
-        '(' => [0x02,0x04,0x08,0x08,0x08,0x04,0x02],
-        ')' => [0x08,0x04,0x02,0x02,0x02,0x04,0x08],
-        _ => [0x00,0x00,0x00,0x00,0x00,0x00,0x00], // space
-    }
-}
-
-fn draw_char(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, c: char, x: i32, y: i32, scale: i32, color: Color) {
-    let bitmap = char_bitmap(c);
-    canvas.set_draw_color(color);
-    for row in 0..7 {
-        let bits = bitmap[row as usize];
-        for col in 0..5 {
-            if bits & (1 << (4 - col)) != 0 {
-                let _ = canvas.fill_rect(Rect::new(
-                    x + col * scale,
-                    y + row * scale,
-                    scale as u32,
-                    scale as u32,
-                ));
-            }
-        }
-    }
-}
-
-fn draw_text(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, text: &str, x: i32, y: i32, scale: i32, color: Color) {
-    let mut cx = x;
-    for ch in text.chars() {
-        draw_char(canvas, ch, cx, y, scale, color);
-        cx += 6 * scale;
-    }
-}
-
-fn render_help_overlay(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>) {
-    let (win_w, win_h) = canvas.output_size().unwrap_or((960, 720));
-
-    // Semi-transparent background
-    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
-    canvas.set_draw_color(Color::RGBA(0, 0, 0, 200));
-    let _ = canvas.fill_rect(Rect::new(0, 0, win_w, win_h));
-
-    let scale = 3i32;
-    let line_h = 8 * scale;
-    let margin = 50i32;
-    let mut y = 30i32;
-
-    // Title
-    let title = "TurtleBox - Controls";
-    let tw = title.len() as i32 * 6 * scale;
-    draw_text(canvas, title, (win_w as i32 - tw) / 2, y, scale, Color::RGB(255, 255, 0));
-    y += line_h + 20;
-
-    // Column positions
-    let col1 = margin;
-    let col2 = (win_w as i32) / 2 + 10;
-
-    // Section headers
-    draw_text(canvas, "Keyboard (P2)", col1, y, scale, Color::RGB(100, 200, 255));
-    draw_text(canvas, "Xbox Controller (P1)", col2, y, scale, Color::RGB(100, 200, 255));
-    y += line_h + 8;
-
-    let gray = Color::RGB(180, 180, 180);
-    let left = [
-        "Arrow Keys - Move",
-        "A - Jump (NES A)",
-        "D - Attack (NES B)",
-        "Enter - Start",
-        "Right Shift - Select",
-        "F1 - Toggle This Help",
-        "ESC - Quit",
-    ];
-    let right = [
-        "DPad/LStick - Move",
-        "LB - Jump (NES A)",
-        "RB - Attack (NES B)",
-        "Start - Start",
-        "Back - Select",
-    ];
-
-    for i in 0..left.len().max(right.len()) {
-        if i < left.len() {
-            draw_text(canvas, left[i], col1, y, scale, gray);
-        }
-        if i < right.len() {
-            draw_text(canvas, right[i], col2, y, scale, gray);
-        }
-        y += line_h + 4;
-    }
-
-    // Footer
-    y += 16;
-    let footer = "Press F1 to close";
-    let fw = footer.len() as i32 * 6 * scale;
-    draw_text(canvas, footer, (win_w as i32 - fw) / 2, y, scale, Color::RGB(255, 255, 255));
 }
 
 fn main() -> Result<(), String> {
@@ -245,7 +89,10 @@ fn main() -> Result<(), String> {
 
     // Validate ROM file extension
     if !rom_path.to_lowercase().ends_with(".nes") {
-        return Err(format!("Invalid ROM file extension: {}. Expected .nes", rom_path));
+        return Err(format!(
+            "Invalid ROM file extension: {}. Expected .nes",
+            rom_path
+        ));
     }
 
     // Initialize SDL2
@@ -269,10 +116,7 @@ fn main() -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    let mut canvas = window
-        .into_canvas()
-        .build()
-        .map_err(|e| e.to_string())?;
+    let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
 
     let texture_creator = canvas.texture_creator();
 
@@ -289,13 +133,17 @@ fn main() -> Result<(), String> {
         samples: Some(1024),
     };
 
-    let audio_device = audio_subsystem.open_playback(None, &audio_spec, |spec| {
-        println!("  ✓ Audio device opened: {} Hz, {} channels, {} samples",
-            spec.freq, spec.channels, spec.samples);
-        NesAudioCallback {
-            buffer: audio_buffer.clone(),
-        }
-    }).map_err(|e| format!("Failed to open audio: {}", e))?;
+    let audio_device = audio_subsystem
+        .open_playback(None, &audio_spec, |spec| {
+            println!(
+                "  ✓ Audio device opened: {} Hz, {} channels, {} samples",
+                spec.freq, spec.channels, spec.samples
+            );
+            NesAudioCallback {
+                buffer: audio_buffer.clone(),
+            }
+        })
+        .map_err(|e| format!("Failed to open audio: {}", e))?;
 
     // Start audio playback
     audio_device.resume();
@@ -354,40 +202,30 @@ fn main() -> Result<(), String> {
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => break 'running,
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => break 'running,
+                Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => break 'running,
 
-                Event::KeyDown { keycode: Some(Keycode::F1), .. } => {
+                Event::KeyDown {
+                    keycode: Some(Keycode::F1),
+                    ..
+                } => {
                     show_help = !show_help;
                 }
 
                 // Keyboard input - Key Down (Player 2)
-                Event::KeyDown { keycode: Some(key), .. } if !show_help => {
-                    match key {
-                        Keycode::Up => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::UP, true),
-                        Keycode::Down => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::DOWN, true),
-                        Keycode::Left => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::LEFT, true),
-                        Keycode::Right => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::RIGHT, true),
-                        Keycode::A => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::A, true),
-                        Keycode::D => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::B, true),
-                        Keycode::Return => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::START, true),
-                        Keycode::RShift => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::SELECT, true),
-                        _ => {}
-                    }
+                Event::KeyDown {
+                    keycode: Some(key), ..
+                } if !show_help => {
+                    input::handle_keyboard_down(&mut deck, key);
                 }
 
                 // Keyboard input - Key Up (Player 2)
-                Event::KeyUp { keycode: Some(key), .. } => {
-                    match key {
-                        Keycode::Up => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::UP, false),
-                        Keycode::Down => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::DOWN, false),
-                        Keycode::Left => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::LEFT, false),
-                        Keycode::Right => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::RIGHT, false),
-                        Keycode::A => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::A, false),
-                        Keycode::D => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::B, false),
-                        Keycode::Return => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::START, false),
-                        Keycode::RShift => deck.joypad_mut(Player::Two).set_button(JoypadBtnState::SELECT, false),
-                        _ => {}
-                    }
+                Event::KeyUp {
+                    keycode: Some(key), ..
+                } => {
+                    input::handle_keyboard_up(&mut deck, key);
                 }
 
                 // Controller connected
@@ -411,80 +249,17 @@ fn main() -> Result<(), String> {
 
                 // Controller button down
                 Event::ControllerButtonDown { button, .. } => {
-                    match button {
-                        // LB → NES A (jump)
-                        Button::LeftShoulder => {
-                            deck.joypad_mut(Player::One).set_button(JoypadBtnState::A, true);
-                        }
-                        // RB → NES B (attack)
-                        Button::RightShoulder => {
-                            deck.joypad_mut(Player::One).set_button(JoypadBtnState::B, true);
-                        }
-                        // DPad
-                        Button::DPadUp => deck.joypad_mut(Player::One).set_button(JoypadBtnState::UP, true),
-                        Button::DPadDown => deck.joypad_mut(Player::One).set_button(JoypadBtnState::DOWN, true),
-                        Button::DPadLeft => deck.joypad_mut(Player::One).set_button(JoypadBtnState::LEFT, true),
-                        Button::DPadRight => deck.joypad_mut(Player::One).set_button(JoypadBtnState::RIGHT, true),
-                        // Start/Select
-                        Button::Start => deck.joypad_mut(Player::One).set_button(JoypadBtnState::START, true),
-                        Button::Back => deck.joypad_mut(Player::One).set_button(JoypadBtnState::SELECT, true),
-                        _ => {}
-                    }
+                    input::handle_controller_button_down(&mut deck, button);
                 }
 
                 // Controller button up
                 Event::ControllerButtonUp { button, .. } => {
-                    match button {
-                        // LB → NES A (jump)
-                        Button::LeftShoulder => {
-                            deck.joypad_mut(Player::One).set_button(JoypadBtnState::A, false);
-                        }
-                        // RB → NES B (attack)
-                        Button::RightShoulder => {
-                            deck.joypad_mut(Player::One).set_button(JoypadBtnState::B, false);
-                        }
-                        // DPad
-                        Button::DPadUp => deck.joypad_mut(Player::One).set_button(JoypadBtnState::UP, false),
-                        Button::DPadDown => deck.joypad_mut(Player::One).set_button(JoypadBtnState::DOWN, false),
-                        Button::DPadLeft => deck.joypad_mut(Player::One).set_button(JoypadBtnState::LEFT, false),
-                        Button::DPadRight => deck.joypad_mut(Player::One).set_button(JoypadBtnState::RIGHT, false),
-                        // Start/Select
-                        Button::Start => deck.joypad_mut(Player::One).set_button(JoypadBtnState::START, false),
-                        Button::Back => deck.joypad_mut(Player::One).set_button(JoypadBtnState::SELECT, false),
-                        _ => {}
-                    }
+                    input::handle_controller_button_up(&mut deck, button);
                 }
 
                 // Left Stick axis motion
                 Event::ControllerAxisMotion { axis, value, .. } => {
-                    match axis {
-                        Axis::LeftX => {
-                            if value > STICK_THRESHOLD {
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::RIGHT, true);
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::LEFT, false);
-                            } else if value < -STICK_THRESHOLD {
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::LEFT, true);
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::RIGHT, false);
-                            } else {
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::LEFT, false);
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::RIGHT, false);
-                            }
-                        }
-                        Axis::LeftY => {
-                            // SDL2 Y axis: negative = up, positive = down
-                            if value > STICK_THRESHOLD {
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::DOWN, true);
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::UP, false);
-                            } else if value < -STICK_THRESHOLD {
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::UP, true);
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::DOWN, false);
-                            } else {
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::UP, false);
-                                deck.joypad_mut(Player::One).set_button(JoypadBtnState::DOWN, false);
-                            }
-                        }
-                        _ => {}
-                    }
+                    input::handle_controller_axis(&mut deck, axis, value);
                 }
 
                 _ => {}
@@ -512,16 +287,18 @@ fn main() -> Result<(), String> {
         let frame_buffer = deck.frame_buffer();
 
         // Update texture
-        texture.update(None, frame_buffer, 256 * 4)
+        texture
+            .update(None, frame_buffer, 256 * 4)
             .map_err(|e| e.to_string())?;
 
         // Render
         canvas.clear();
-        canvas.copy(&texture, None, None)
+        canvas
+            .copy(&texture, None, None)
             .map_err(|e| e.to_string())?;
 
         if show_help {
-            render_help_overlay(&mut canvas);
+            overlay::render_help_overlay(&mut canvas);
         }
 
         canvas.present();
