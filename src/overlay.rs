@@ -58,11 +58,20 @@ fn char_bitmap(c: char) -> [u8; 7] {
         '0' => [0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E],
         '1' => [0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E],
         '2' => [0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F],
+        '3' => [0x0E, 0x11, 0x01, 0x06, 0x01, 0x11, 0x0E],
+        '4' => [0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02],
+        '5' => [0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E],
+        '6' => [0x06, 0x08, 0x10, 0x1E, 0x11, 0x11, 0x0E],
+        '7' => [0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08],
+        '8' => [0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E],
+        '9' => [0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C],
         '-' => [0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00],
         '/' => [0x01, 0x02, 0x02, 0x04, 0x08, 0x08, 0x10],
         '(' => [0x02, 0x04, 0x08, 0x08, 0x08, 0x04, 0x02],
         ')' => [0x08, 0x04, 0x02, 0x02, 0x02, 0x04, 0x08],
-        _ => [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], // space
+        '%' => [0x18, 0x19, 0x02, 0x04, 0x08, 0x13, 0x03],
+        ':' => [0x00, 0x00, 0x04, 0x00, 0x04, 0x00, 0x00],
+        _ => [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
     }
 }
 
@@ -91,7 +100,7 @@ fn draw_char(
     }
 }
 
-fn draw_text(
+pub(crate) fn draw_text(
     canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
     text: &str,
     x: i32,
@@ -106,10 +115,14 @@ fn draw_text(
     }
 }
 
+/// Measure the pixel width of a text string at given scale.
+fn text_width(text: &str, scale: i32) -> i32 {
+    text.len() as i32 * 6 * scale
+}
+
 pub fn render_help_overlay(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>) {
     let (win_w, win_h) = canvas.output_size().unwrap_or((960, 720));
 
-    // Semi-transparent background
     canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
     canvas.set_draw_color(Color::RGBA(0, 0, 0, 200));
     let _ = canvas.fill_rect(Rect::new(0, 0, win_w, win_h));
@@ -119,9 +132,8 @@ pub fn render_help_overlay(canvas: &mut sdl2::render::Canvas<sdl2::video::Window
     let margin = 50i32;
     let mut y = 30i32;
 
-    // Title
     let title = "TurtleBox - Controls";
-    let tw = title.len() as i32 * 6 * scale;
+    let tw = text_width(title, scale);
     draw_text(
         canvas,
         title,
@@ -132,11 +144,9 @@ pub fn render_help_overlay(canvas: &mut sdl2::render::Canvas<sdl2::video::Window
     );
     y += line_h + 20;
 
-    // Column positions
     let col1 = margin;
     let col2 = (win_w as i32) / 2 + 10;
 
-    // Section headers
     draw_text(
         canvas,
         "Keyboard (P2)",
@@ -163,6 +173,11 @@ pub fn render_help_overlay(canvas: &mut sdl2::render::Canvas<sdl2::video::Window
         "Enter - Start",
         "Right Shift - Select",
         "F1 - Toggle This Help",
+        "F5 - Save State",
+        "F8 - Load State",
+        "F11 - Toggle Fullscreen",
+        "P - Pause/Resume",
+        "= / - - Volume +/-5%",
         "ESC - Quit",
     ];
     let right = [
@@ -170,6 +185,7 @@ pub fn render_help_overlay(canvas: &mut sdl2::render::Canvas<sdl2::video::Window
         "LB - Jump (NES A)",
         "RB - Attack (NES B)",
         "Start - Start",
+        "Start (hold 1s) - Pause",
         "Back - Select",
     ];
 
@@ -183,10 +199,9 @@ pub fn render_help_overlay(canvas: &mut sdl2::render::Canvas<sdl2::video::Window
         y += line_h + 4;
     }
 
-    // Footer
     y += 16;
     let footer = "Press F1 to close";
-    let fw = footer.len() as i32 * 6 * scale;
+    let fw = text_width(footer, scale);
     draw_text(
         canvas,
         footer,
@@ -195,4 +210,62 @@ pub fn render_help_overlay(canvas: &mut sdl2::render::Canvas<sdl2::video::Window
         scale,
         Color::RGB(255, 255, 255),
     );
+}
+
+pub fn render_pause_overlay(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>) {
+    let (win_w, win_h) = canvas.output_size().unwrap_or((960, 720));
+
+    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+    canvas.set_draw_color(Color::RGBA(0, 0, 0, 160));
+    let _ = canvas.fill_rect(Rect::new(0, 0, win_w, win_h));
+
+    let scale = 5i32;
+    let text = "PAUSED";
+    let tw = text_width(text, scale);
+    let th = 7 * scale;
+    let x = (win_w as i32 - tw) / 2;
+    let y = (win_h as i32 - th) / 2;
+
+    draw_text(canvas, text, x, y, scale, Color::RGB(255, 255, 0));
+}
+
+pub fn render_volume_overlay(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, volume: u8) {
+    let (win_w, win_h) = canvas.output_size().unwrap_or((960, 720));
+
+    let scale = 3i32;
+    let text = format!("VOL: {}%", volume);
+    let tw = text_width(&text, scale);
+    let x = (win_w as i32 - tw) / 2;
+    let y = win_h as i32 - 7 * scale - 20;
+
+    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+    canvas.set_draw_color(Color::RGBA(0, 0, 0, 180));
+    let _ = canvas.fill_rect(Rect::new(
+        x - 8,
+        y - 4,
+        (tw + 16) as u32,
+        (7 * scale + 8) as u32,
+    ));
+
+    draw_text(canvas, &text, x, y, scale, Color::RGB(255, 255, 255));
+}
+
+pub fn render_state_overlay(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, message: &str) {
+    let (win_w, _win_h) = canvas.output_size().unwrap_or((960, 720));
+
+    let scale = 3i32;
+    let tw = text_width(message, scale);
+    let x = (win_w as i32 - tw) / 2;
+    let y = 20i32;
+
+    canvas.set_blend_mode(sdl2::render::BlendMode::Blend);
+    canvas.set_draw_color(Color::RGBA(0, 0, 0, 180));
+    let _ = canvas.fill_rect(Rect::new(
+        x - 8,
+        y - 4,
+        (tw + 16) as u32,
+        (7 * scale + 8) as u32,
+    ));
+
+    draw_text(canvas, message, x, y, scale, Color::RGB(0, 255, 0));
 }
